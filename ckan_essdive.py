@@ -155,6 +155,8 @@ class CkanEssDiveClient:
         name = resource.get("name") or resource.get("id") or "resource"
         url = resource.get("url") or ""
         suffix = pathlib.Path(url).suffix if url else ""
+        if suffix.lower() in {".html", ".htm"}:
+            return ""
         if suffix and not name.endswith(suffix):
             return f"{name}{suffix}"
         return name if suffix else ""
