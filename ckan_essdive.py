@@ -27,7 +27,7 @@ REQUIRED_FIELDS = {
 
 
 class CkanEssDiveClient:
-    """Lightweight helper for CKAN ➜ ESS-DIVE flows with optional Tapis staging."""
+    """Lightweight helper for CKAN ➜ ESS-DIVE flows."""
 
     def __init__(
         self,
@@ -37,10 +37,6 @@ class CkanEssDiveClient:
         ess_url: str,
         ess_token: str = "",
         local_stage: str | pathlib.Path = "./staging",
-        tapis_base: str | None = None,
-        tapis_token: str | None = None,
-        tapis_system: str | None = None,
-        tapis_path: str | None = None,
         dry_run: bool = True,
     ) -> None:
         self.ckan_url = ckan_url.rstrip("/")
@@ -48,50 +44,9 @@ class CkanEssDiveClient:
         self.ess_url = ess_url.rstrip("/")
         self.ess_token = ess_token
         self.local_stage = pathlib.Path(local_stage).expanduser()
-        self.tapis_base = tapis_base.rstrip("/") if tapis_base else None
-        self.tapis_token = tapis_token
-        self.tapis_system = tapis_system
-        self.tapis_path = tapis_path
         self.dry_run = dry_run
-        self._tapis_client: Optional[Any] = None
 
-    @staticmethod
-    def get_ckan_token_via_tapis(
-        username: str,
-        password: str,
-        base_url: str = "https://portals.tapis.io",
-    ) -> str:
-        """Mirror CKAN login flow used in Ckan-metadata-netcdf: fetch Tapis token and pass as CKAN Bearer."""
-        if not Tapis:
-            raise RuntimeError("tapipy is not installed; cannot fetch Tapis tokens")
-        t = Tapis(base_url=base_url, username=username, password=password)
-        t.get_tokens()
-        return t.access_token.access_token
-
-    def authenticate_ckan_with_tapis(
-        self,
-        username: str,
-        password: str,
-        base_url: str = "https://portals.tapis.io",
-    ) -> str:
-        token = self.get_ckan_token_via_tapis(username, password, base_url)
-        self.ckan_key = token
-        return token
-
-
-def fetch_ckan_token_via_tapis(
-    username: str,
-    password: str,
-    base_url: str = "https://portals.tapis.io",
-) -> str:
-    """Convenience wrapper for fetching a CKAN bearer token from Tapis credentials."""
-    return CkanEssDiveClient.get_ckan_token_via_tapis(username=username, password=password, base_url=base_url)
-
-
-def test_ckan_status(client: CkanEssDiveClient) -> Dict[str, Any]:
-    """Ping CKAN status endpoint using the configured client."""
-    return client.ckan_request("status")
-
+    # ---- CKAN helpers ----
     @staticmethod
     def _headers(api_key: str = "") -> Dict[str, str]:
         headers = {"User-Agent": USER_AGENT}
@@ -124,6 +79,7 @@ def test_ckan_status(client: CkanEssDiveClient) -> Dict[str, Any]:
     def get_ckan_package(self, name_or_id: str) -> Dict[str, Any]:
         return self.ckan_request("package_show", params={"id": name_or_id})
 
+    # ---- Mapping helpers ----
     @staticmethod
     def map_ckan_to_essdive(package: Dict[str, Any]) -> Dict[str, Any]:
         extras = {item.get("key"): item.get("value") for item in package.get("extras", [])}
@@ -193,9 +149,9 @@ def test_ckan_status(client: CkanEssDiveClient) -> Dict[str, Any]:
         ]
         return "\n".join(lines)
 
+    # ---- Resource handling ----
     @staticmethod
     def _resource_filename(resource: Dict[str, Any]) -> str:
-        """Choose a filename that keeps any extension from the URL."""
         name = resource.get("name") or resource.get("id") or "resource"
         url = resource.get("url") or ""
         suffix = pathlib.Path(url).suffix if url else ""
@@ -203,14 +159,14 @@ def test_ckan_status(client: CkanEssDiveClient) -> Dict[str, Any]:
             return f"{name}{suffix}"
         return name
 
-    def download_resource(resource: Dict[str, Any], target_dir: pathlib.Path, api_key: str = "") -> pathlib.Path:
+    def download_resource(self, resource: Dict[str, Any]) -> pathlib.Path:
         url = resource.get("url")
         if not url:
             raise ValueError("Resource has no URL to download")
-        filename = CkanEssDiveClient._resource_filename(resource)
-        path = target_dir.expanduser().resolve() / filename
+        filename = self._resource_filename(resource)
+        path = self.local_stage.expanduser().resolve() / filename
         path.parent.mkdir(parents=True, exist_ok=True)
-        with requests.get(url, headers=CkanEssDiveClient._headers(api_key), stream=True, timeout=300) as resp:
+        with requests.get(url, headers=self._headers(self.ckan_key), stream=True, timeout=300) as resp:
             resp.raise_for_status()
             with open(path, "wb") as handle:
                 for chunk in resp.iter_content(chunk_size=512 * 1024):
@@ -218,28 +174,16 @@ def test_ckan_status(client: CkanEssDiveClient) -> Dict[str, Any]:
                         handle.write(chunk)
         return path
 
-    @property
-    def tapis_client(self) -> Optional[Any]:
-        if self._tapis_client is None and Tapis and self.tapis_token and self.tapis_base:
-            self._tapis_client = Tapis(base_url=self.tapis_base, access_token=self.tapis_token)
-        return self._tapis_client
-
     def stage_resources(self, package: Dict[str, Any]) -> List[pathlib.Path]:
         saved: List[pathlib.Path] = []
         for res in package.get("resources", []):
             try:
-                path = self.download_resource(res, self.local_stage, api_key=self.ckan_key)
-                saved.append(path)
-                if self.tapis_client and self.tapis_system and self.tapis_path:
-                    self.tapis_client.files.upload(
-                        system_id=self.tapis_system,
-                        source_path=str(path),
-                        destination_path=self.tapis_path,
-                    )
+                saved.append(self.download_resource(res))
             except Exception as exc:  # pragma: no cover - depends on remote endpoints
                 logging.warning("Could not stage %s: %s", res.get("name"), exc)
         return saved
 
+    # ---- ESS-DIVE submission ----
     def submit_to_essdive(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         if self.dry_run:
             return {"status": "skipped", "reason": "dry_run_enabled"}
@@ -251,3 +195,40 @@ def test_ckan_status(client: CkanEssDiveClient) -> Dict[str, Any]:
         resp = requests.post(url, headers=headers, json=payload, timeout=90)
         resp.raise_for_status()
         return resp.json()
+
+    # ---- Auth helpers ----
+    @staticmethod
+    def get_ckan_token_via_tapis(
+        username: str,
+        password: str,
+        base_url: str = "https://portals.tapis.io",
+    ) -> str:
+        if not Tapis:
+            raise RuntimeError("tapipy is not installed; cannot fetch Tapis tokens")
+        t = Tapis(base_url=base_url, username=username, password=password)
+        t.get_tokens()
+        return t.access_token.access_token
+
+    def authenticate_ckan_with_tapis(
+        self,
+        username: str,
+        password: str,
+        base_url: str = "https://portals.tapis.io",
+    ) -> str:
+        token = self.get_ckan_token_via_tapis(username, password, base_url)
+        self.ckan_key = token
+        return token
+
+
+def fetch_ckan_token_via_tapis(
+    username: str,
+    password: str,
+    base_url: str = "https://portals.tapis.io",
+) -> str:
+    """Convenience wrapper for fetching a CKAN bearer token from Tapis credentials."""
+    return CkanEssDiveClient.get_ckan_token_via_tapis(username=username, password=password, base_url=base_url)
+
+
+def test_ckan_status(client: CkanEssDiveClient) -> Dict[str, Any]:
+    """Ping CKAN status endpoint using the configured client."""
+    return client.ckan_request("status")
