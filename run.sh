@@ -249,6 +249,13 @@ function create_conda_environment() {
 		pip install --no-cache-dir -r $COOKBOOK_WORKSPACE_DIR/.binder/requirements.txt
 	fi
 	python -m ipykernel install --user --name "${COOKBOOK_CONDA_ENV}" --display-name "Python (${COOKBOOK_CONDA_ENV})"
+	# Ensure ipywidgets labextension is enabled (avoids \"model not found\" in JupyterLab)
+	if command -v jupyter-lab >/dev/null 2>&1; then
+		jupyter-labextension install @jupyter-widgets/jupyterlab-manager --no-build || true
+		jupyter lab build || true
+	elif command -v jupyter >/dev/null 2>&1; then
+		jupyter nbextension enable --py widgetsnbextension || true
+	fi
 }
 
 function delete_conda_environment() {
