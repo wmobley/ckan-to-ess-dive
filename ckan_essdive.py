@@ -78,6 +78,20 @@ class CkanEssDiveClient:
         self.ckan_key = token
         return token
 
+
+def fetch_ckan_token_via_tapis(
+    username: str,
+    password: str,
+    base_url: str = "https://portals.tapis.io",
+) -> str:
+    """Convenience wrapper for fetching a CKAN bearer token from Tapis credentials."""
+    return CkanEssDiveClient.get_ckan_token_via_tapis(username=username, password=password, base_url=base_url)
+
+
+def test_ckan_status(client: CkanEssDiveClient) -> Dict[str, Any]:
+    """Ping CKAN status endpoint using the configured client."""
+    return client.ckan_request("status")
+
     @staticmethod
     def _headers(api_key: str = "") -> Dict[str, str]:
         headers = {"User-Agent": USER_AGENT}
