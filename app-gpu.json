@@ -1,7 +1,7 @@
 {
-  "id": "cookbook-jupyter-template-gpu",
-  "version": "0.0.2",
-  "description": "Jupyter Lab environment for GPU",
+  "id": "ckan-to-ess-dive-gpu",
+  "version": "0.1.0",
+  "description": "Interactive CKAN to ESS-DIVE transfer notebook (GPU)",
   "owner": "${apiUserId}",
   "enabled": true,
   "runtime": "SINGULARITY",
@@ -150,7 +150,7 @@
   },
   "tags": ["portalName: ALL"],
   "notes": {
-    "label": "Cookbook - Jupyter Lab (GPU)",
+    "label": "CKAN to ESS-DIVE (GPU)",
     "hideNodeCountAndCoresPerNode": true,
     "isInteractive": true,
     "icon": "jupyter",

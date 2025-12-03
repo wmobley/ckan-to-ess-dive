@@ -2,6 +2,14 @@ name: llm
 channels:
   - conda-forge
 dependencies:
+  - python=3.11
   - ipywidgets
   - ipykernel
   - jupyterlab
+  - requests
+  - pandas
+  - pyyaml
+  - pip
+  - pip:
+      - tapipy
+      - ckanapi

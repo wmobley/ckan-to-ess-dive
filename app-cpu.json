@@ -1,7 +1,7 @@
 {
-  "id": "cookbook-jupyter-template-cpu",
-  "version": "0.0.2",
-  "description": "Jupyter Lab environment for CPU",
+  "id": "ckan-to-ess-dive-cpu",
+  "version": "0.1.0",
+  "description": "Interactive CKAN to ESS-DIVE transfer notebook (CPU)",
   "owner": "${apiUserId}",
   "enabled": true,
   "runtime": "SINGULARITY",
@@ -141,7 +141,7 @@
   },
   "tags": ["portalName: ALL"],
   "notes": {
-    "label": "Cookbook - Jupyter Lab (CPU)",
+    "label": "CKAN to ESS-DIVE (CPU)",
     "hideNodeCountAndCoresPerNode": true,
     "isInteractive": true,
     "icon": "jupyter",
