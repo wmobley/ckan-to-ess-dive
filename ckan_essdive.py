@@ -157,13 +157,15 @@ class CkanEssDiveClient:
         suffix = pathlib.Path(url).suffix if url else ""
         if suffix and not name.endswith(suffix):
             return f"{name}{suffix}"
-        return name
+        return name if suffix else ""
 
     def download_resource(self, resource: Dict[str, Any]) -> pathlib.Path:
         url = resource.get("url")
         if not url:
             raise ValueError("Resource has no URL to download")
         filename = self._resource_filename(resource)
+        if not filename:
+            raise ValueError("Resource URL has no file extension; skipping download")
         path = self.local_stage.expanduser().resolve() / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         with requests.get(url, headers=self._headers(self.ckan_key), stream=True, timeout=300) as resp:
