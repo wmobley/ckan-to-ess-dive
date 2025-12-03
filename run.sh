@@ -253,8 +253,10 @@ function create_conda_environment() {
 	if command -v jupyter-lab >/dev/null 2>&1; then
 		jupyter-labextension install @jupyter-widgets/jupyterlab-manager --no-build || true
 		jupyter lab build || true
-	elif command -v jupyter >/dev/null 2>&1; then
-		jupyter nbextension enable --py widgetsnbextension || true
+	fi
+	if command -v jupyter >/dev/null 2>&1; then
+		jupyter nbextension enable --py widgetsnbextension --sys-prefix || true
+		jupyter nbclassic-extension enable --py widgetsnbextension --sys-prefix || true
 	fi
 }
 
