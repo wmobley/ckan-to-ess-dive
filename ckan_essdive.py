@@ -180,12 +180,21 @@ class CkanEssDiveClient:
         return "\n".join(lines)
 
     @staticmethod
+    def _resource_filename(resource: Dict[str, Any]) -> str:
+        """Choose a filename that keeps any extension from the URL."""
+        name = resource.get("name") or resource.get("id") or "resource"
+        url = resource.get("url") or ""
+        suffix = pathlib.Path(url).suffix if url else ""
+        if suffix and not name.endswith(suffix):
+            return f"{name}{suffix}"
+        return name
+
     def download_resource(resource: Dict[str, Any], target_dir: pathlib.Path, api_key: str = "") -> pathlib.Path:
         url = resource.get("url")
         if not url:
             raise ValueError("Resource has no URL to download")
-        name = resource.get("name") or resource.get("id") or "resource"
-        path = target_dir.expanduser().resolve() / name
+        filename = CkanEssDiveClient._resource_filename(resource)
+        path = target_dir.expanduser().resolve() / filename
         path.parent.mkdir(parents=True, exist_ok=True)
         with requests.get(url, headers=CkanEssDiveClient._headers(api_key), stream=True, timeout=300) as resp:
             resp.raise_for_status()
